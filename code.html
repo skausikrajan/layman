@@ -56,7 +56,6 @@
       padding:0 8px; font-size: 13px; margin-left:12px;
       border-radius: 7px;
     }
-
     .actions-panel {
       margin-bottom: 12px;
       display: flex; gap: 16px;
@@ -73,7 +72,6 @@
     }
     .option-btn:disabled { opacity: 0.55; cursor: not-allowed; }
     .option-btn:hover:not(:disabled) { background: #264db1; }
-
     .wall-name-heading {
       font-size: 1.18rem;
       color: #395bdf;
@@ -113,14 +111,20 @@
       color: #22707c;
       word-break:break-word; text-align:left;
     }
-    .fixture-edit-btn {
-      position: absolute; top: 6px; right: 10px;
+    .fixture-edit-btn, .fixture-delete-btn {
+      position: absolute; top: 6px;
       background: #e6edfd; color: #395bdf; border: none;
       border-radius: 5px; font-size: 14px; padding: 0 5px;
       cursor: pointer; z-index: 1001; display: none;
+      transition: background .11s;
     }
+    .fixture-edit-btn:hover, .fixture-delete-btn:hover { background: #e1e7fb; }
+    .fixture-edit-btn { right: 29px; }
+    .fixture-delete-btn { right: 8px; color: #c23b2f;}
     .fixture:hover .fixture-edit-btn,
-    .edit-mode .fixture-edit-btn { display: block; }
+    .fixture:hover .fixture-delete-btn,
+    .edit-mode .fixture-edit-btn,
+    .edit-mode .fixture-delete-btn { display: block; }
     .edit-mode .fixture { border-color: #395bdf; }
     .fixture.dragging {
       border: 2.6px dashed #2946b9;
@@ -203,8 +207,6 @@ let fixturesByWall = {
 let selectedWall = "wall1";
 let editingFixture = null;
 let isEditMode = false;
-
-// Default initial positions for each wall/floor (used if fixture has no customPos)
 const wallDefaults = [
   idx => ({ left: 20 + idx * 100, top: 30 }),    // wall1 top horizontal
   idx => ({ left: 380, top: 30 + idx * 80 }),    // wall2 right vertical
@@ -214,7 +216,6 @@ const wallDefaults = [
   idx => ({ left: 50 + (idx % 5) * 95, top: 30 + Math.floor(idx / 5) * 95 }) // floor: grid
 ];
 
-// Render wall/folder list on left
 function renderWalls() {
   const wallsList = document.getElementById("wallsList");
   wallsList.innerHTML = "";
@@ -236,7 +237,6 @@ function renderWalls() {
   populateWallSelectOptions();
 }
 
-// Adjust fixture size depending on count for neat display
 function getFixtureSizeForWall(n) {
   const max = 100, min = 60;
   if (n <= 4) return 90;
@@ -263,26 +263,47 @@ function renderFixtures() {
     el.style.width = el.style.height = size + "px";
     el.style.left = fx.customPos.x + "px";
     el.style.top = fx.customPos.y + "px";
+
+    // Edit and DELETE buttons (edit left, delete at far right)
     el.innerHTML = `
       <div class="fixture-header">Fixture ${idx + 1}</div>
       <div class="fixture-details">
-         <div><b>${fx.name}</b></div>
-         <div>${fx.type}</div>
-         <div>${fx.ft} ft</div>
+        <div><b>${fx.name}</b></div>
+        <div>${fx.type}</div>
+        <div>${fx.ft} ft</div>
       </div>
-      <button class="fixture-edit-btn">&#9998;</button>
+      <button class="fixture-edit-btn" title="Edit">&#9998;</button>
+      <button class="fixture-delete-btn" title="Delete">&#128465;</button>
     `;
+
     el.querySelector(".fixture-edit-btn").onclick = ev => {
       ev.stopPropagation();
-      if(!isEditMode) return; // prevent editing unless in edit mode
+      if(!isEditMode) return;
       openFixtureModal("edit", fx);
     };
+
+    el.querySelector(".fixture-delete-btn").onclick = ev => {
+      ev.stopPropagation();
+      if (!isEditMode) return;
+      deleteFixtureConfirm(fx);
+    };
+
     makeDraggable(el, fx);
     fixturesArea.appendChild(el);
   });
 }
 
-// Populate the wall/folder dropdown in modal form
+function deleteFixtureConfirm(fx) {
+  const result = window.confirm(`Delete fixture "${fx.name}"?\n(This action is permanent)`);
+  if (result) {
+    const arr = fixturesByWall[fx.wall];
+    const idx = arr.indexOf(fx);
+    if (idx > -1) arr.splice(idx, 1);
+    renderWalls();
+    renderFixtures();
+  }
+}
+
 function populateWallSelectOptions() {
   const select = document.getElementById("fixtureWall");
   select.innerHTML = '<option value="">Select Wall/Folder</option>';
@@ -295,14 +316,13 @@ function populateWallSelectOptions() {
   if(editingFixture){
     select.value = editingFixture.wall;
   } else {
-    select.value = selectedWall; // default to current wall selected
+    select.value = selectedWall;
   }
 }
 
-// Drag and drop logic for fixtures inside fixture area
 function makeDraggable(elem, fixture) {
   elem.onmousedown = function(e) {
-    if (e.button !== 0 || e.target.classList.contains("fixture-edit-btn")) return;
+    if (e.button !== 0 || e.target.classList.contains("fixture-edit-btn") || e.target.classList.contains("fixture-delete-btn")) return;
     const areaRect = document.getElementById("fixturesArea").getBoundingClientRect();
     const elemRect = elem.getBoundingClientRect();
     const offsetX = e.clientX - elemRect.left;
@@ -323,11 +343,10 @@ function makeDraggable(elem, fixture) {
       elem.classList.remove("dragging");
       document.onmousemove = document.onmouseup = null;
     };
-    return false; // prevent selections
+    return false;
   };
 }
 
-// Open modal to add or edit a fixture
 function openFixtureModal(mode, fixture = null) {
   const modalBg = document.getElementById('fixtureModalBg');
   modalBg.style.display = "flex";
@@ -354,7 +373,6 @@ function openFixtureModal(mode, fixture = null) {
   setTimeout(() => document.getElementById('fixtureName').focus(), 40);
 }
 
-// Close modal
 function closeFixtureModal() {
   document.getElementById('fixtureModalBg').style.display = "none";
   document.body.style.overflow = "";
@@ -366,26 +384,21 @@ document.getElementById('fixtureModalBg').onclick = e => {
   if (e.target === e.currentTarget) closeFixtureModal();
 };
 
-// Handle add/edit submit
 document.getElementById('fixtureForm').onsubmit = function(ev) {
   ev.preventDefault();
   const name = document.getElementById('fixtureName').value.trim();
   const type = document.getElementById('fixtureType').value.trim();
   const ft = document.getElementById('fixtureFt').value.trim();
   const newWall = document.getElementById('fixtureWall').value;
-
   if (!newWall) return;
 
   if (editingFixture) {
-    // If assigned wall changed, move fixture to new wall
     if (editingFixture.wall !== newWall) {
-      // Remove from old wall array
       let oldArr = fixturesByWall[editingFixture.wall];
       let idx = oldArr.indexOf(editingFixture);
       if (idx > -1) oldArr.splice(idx, 1);
-      // Add to new wall array
       fixturesByWall[newWall].push(editingFixture);
-      editingFixture.customPos = null; // reset position to default on wall change
+      editingFixture.customPos = null;
       editingFixture.wall = newWall;
     }
     editingFixture.name = name;
@@ -407,7 +420,6 @@ document.getElementById('fixtureForm').onsubmit = function(ev) {
   renderFixtures();
 };
 
-// Buttons
 document.getElementById('addFixtureBtn').onclick = () => openFixtureModal("add");
 
 const toggleEditBtn = document.getElementById('toggleEditBtn');
@@ -418,7 +430,6 @@ toggleEditBtn.onclick = () => {
   renderFixtures();
 };
 
-// Responsive handling
 window.addEventListener("resize", renderFixtures);
 
 // Initial render
